@@ -2,17 +2,33 @@ import { NextRequest, NextResponse } from "next/server";
 import { makePDFFromDomain } from "@/app/pdf";
 
 // Adicionar headers CORS
-const corsHeaders = {
-    'Access-Control-Allow-Origin': '*', // ou especifique domínios permitidos
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-};
+const allowedOrigins = [
+    'http://localhost:8000',
+    'http://getoffice.vercel.app',
+    'https://getoffice-notion-pdf-service.vercel.app'
+];
 
-export async function OPTIONS() {
+function getCorsHeaders(origin: string | null) {
+    const isAllowed = origin && allowedOrigins.includes(origin);
+    
+    return {
+        'Access-Control-Allow-Origin': isAllowed ? origin : allowedOrigins[0],
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Credentials': 'true',
+    };
+}
+
+export async function OPTIONS(request: NextRequest) {
+    const origin = request.headers.get('origin');
+    const corsHeaders = getCorsHeaders(origin);
     return NextResponse.json({}, { headers: corsHeaders });
 }
 
 export async function POST(request: NextRequest) {
+    const origin = request.headers.get('origin');
+    const corsHeaders = getCorsHeaders(origin);
+
     try {
         const body = await request.json();
         const { url } = body;
