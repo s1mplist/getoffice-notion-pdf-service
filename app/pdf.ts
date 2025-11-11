@@ -367,50 +367,53 @@ export const makePDFFromDomain = async (url: string): Promise<Buffer> => {
                 
                 console.log(`Talhao ${index + 1}: ${images.length} images`);
                 
-                // Definir altura consistente para todas as imagens dentro de cada talhão
-                const imageHeight = 350; // altura fixa em pixels
-                
+                // REMOVIDO: altura fixa - deixar o CSS do template controlar
+                // Apenas garantir que imagens sejam carregadas corretamente
                 images.forEach((img) => {
-                    const wrapper = img.closest('.gallery-image-wrapper, .image-wrapper') as HTMLElement;
+                    // Garantir que lazy loading está desabilitado
+                    img.removeAttribute('loading');
                     
-                    if (wrapper) {
-                        wrapper.style.height = `${imageHeight}px`;
-                        wrapper.style.minHeight = `${imageHeight}px`;
-                        wrapper.style.maxHeight = `${imageHeight}px`;
-                        wrapper.style.display = 'flex';
-                        wrapper.style.alignItems = 'center';
-                        wrapper.style.justifyContent = 'center';
-                        wrapper.style.overflow = 'hidden';
-                        wrapper.style.margin = '10px 0';
-                    }
-                    
-                    img.style.height = '100%';
-                    img.style.width = '100%';
-                    img.style.maxHeight = `${imageHeight}px`;
+                    // Aplicar apenas estilos essenciais para PDF
+                    img.style.maxWidth = '100%';
+                    img.style.height = 'auto';
                     img.style.objectFit = 'contain';
-                    img.style.objectPosition = 'center';
                 });
             });
             
+            // CSS mínimo - apenas para garantir comportamento correto no PDF
             const dynamicStyle = document.createElement('style');
             dynamicStyle.textContent = `
+                /* Deixar o grid CSS do template funcionar */
                 .gallery-image-wrapper, .image-wrapper {
-                    width: 100% !important;
-                    display: flex !important;
-                    align-items: center !important;
-                    justify-content: center !important;
-                    overflow: hidden !important;
+                    page-break-inside: avoid !important;
+                    break-inside: avoid !important;
                 }
                 
+                /* Garantir que imagens se comportem bem no PDF */
                 .gallery-image, .image-gallery img {
+                    max-width: 100% !important;
+                    height: auto !important;
                     object-fit: contain !important;
-                    object-position: center !important;
                     image-orientation: from-image !important;
+                }
+                
+                /* Para grid de 3 colunas - se o template usar essa classe */
+                .image-grid-3 {
+                    display: grid !important;
+                    grid-template-columns: repeat(3, 1fr) !important;
+                    gap: 10px !important;
+                }
+                
+                /* Para grid de 2 colunas - manter compatibilidade */
+                .image-grid-2 {
+                    display: grid !important;
+                    grid-template-columns: repeat(2, 1fr) !important;
+                    gap: 10px !important;
                 }
             `;
             document.head.appendChild(dynamicStyle);
             
-            console.log('Image sizing applied - all images normalized to 350px height');
+            console.log('Image sizing applied - respecting template CSS');
         });
 
         console.log(`[PDF] Extracting image URLs...`);
