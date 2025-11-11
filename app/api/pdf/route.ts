@@ -1,20 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makePDFFromDomain } from "@/app/pdf";
 
-// Adicionar headers CORS
+// Padrões permitidos
 const allowedOrigins = [
     'http://localhost:8000',
-    'http://getoffice.vercel.app',
-    'https://getoffice-notion-pdf-service.vercel.app'
+    'http://localhost:3000',
 ];
 
-function getCorsHeaders(origin: string | null) {
-    const isAllowed = origin && allowedOrigins.includes(origin);
-    
-    return {
-        'Access-Control-Allow-Origin': isAllowed ? origin : allowedOrigins[0],
+// Regex para validar domínios Vercel
+const vercelPattern = /^https?:\/\/.*\.vercel\.app$/;
+
+function getCorsHeaders(origin: string | null): Record<string, string> {
+    const baseHeaders = {
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    };
+
+    if (!origin) {
+        return {
+            ...baseHeaders,
+            'Access-Control-Allow-Origin': '*',
+        };
+    }
+
+    // Verificar se é um domínio permitido ou match com padrão Vercel
+    const isAllowed = allowedOrigins.includes(origin) || vercelPattern.test(origin);
+    
+    return {
+        ...baseHeaders,
+        'Access-Control-Allow-Origin': isAllowed ? origin : allowedOrigins[0],
         'Access-Control-Allow-Credentials': 'true',
     };
 }
@@ -22,7 +36,10 @@ function getCorsHeaders(origin: string | null) {
 export async function OPTIONS(request: NextRequest) {
     const origin = request.headers.get('origin');
     const corsHeaders = getCorsHeaders(origin);
-    return NextResponse.json({}, { headers: corsHeaders });
+    return new NextResponse(null, { 
+        status: 200, 
+        headers: corsHeaders 
+    });
 }
 
 export async function POST(request: NextRequest) {
@@ -53,20 +70,36 @@ export async function POST(request: NextRequest) {
 
         const pdfBuffer = await makePDFFromDomain(url);
 
-        // Converter Buffer para Uint8Array (compatível com NextResponse)
         return new NextResponse(new Uint8Array(pdfBuffer), {
             status: 200,
             headers: {
                 ...corsHeaders,
                 'Content-Type': 'application/pdf',
-                'Content-Disposition': `attachment; filename="document.pdf"`,
+                'Content-Disposition': 'attachment; filename="document.pdf"',
             },
         });
     } catch (error) {
         console.error("[API] Error generating PDF:", error);
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : "Erro ao gerar PDF" },
+            { 
+                error: 'Erro ao gerar PDF',
+                details: error instanceof Error ? error.message : String(error)
+            },
             { status: 500, headers: corsHeaders }
         );
     }
+}
+
+// Adicionar GET para debug
+export async function GET(request: NextRequest) {
+    const origin = request.headers.get('origin');
+    return NextResponse.json(
+        { 
+            status: 'ok',
+            message: 'PDF Service is running',
+            origin: origin,
+            allowed: origin ? (allowedOrigins.includes(origin) || vercelPattern.test(origin)) : false
+        },
+        { headers: getCorsHeaders(origin) }
+    );
 }
