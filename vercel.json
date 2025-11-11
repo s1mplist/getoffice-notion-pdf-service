@@ -6,7 +6,6 @@
   "framework": "nextjs",
   "functions": {
     "app/api/pdf/route.ts": {
-      "memory": 2048,
       "maxDuration": 60
     }
   },
