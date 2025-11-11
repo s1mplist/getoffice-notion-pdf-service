@@ -6,18 +6,22 @@ import sharp from "sharp";
 async function getBrowser() {
     const REMOTE_PATH = process.env.CHROMIUM_REMOTE_EXEC_PATH;
     const LOCAL_PATH = process.env.CHROMIUM_LOCAL_EXEC_PATH;
+    
+    console.log('[Browser] REMOTE_PATH:', REMOTE_PATH ? '✓ Set' : '✗ Not set');
+    console.log('[Browser] LOCAL_PATH:', LOCAL_PATH ? '✓ Set' : '✗ Not set');
+    
     if (!REMOTE_PATH && !LOCAL_PATH) {
         throw new Error("Missing a path for chromium executable");
     }
 
     if (!!REMOTE_PATH) {
+        console.log('[Browser] Using REMOTE Chromium from blob storage');
         return await puppeteerCore.launch({
             args: [
                 ...chromium.args,
-                '--font-render-hinting=none', // Melhor renderização de fontes
+                '--font-render-hinting=none',
             ],
-            executablePath: await chromium.executablePath(REMOTE_PATH,
-            ),
+            executablePath: await chromium.executablePath(REMOTE_PATH),
             defaultViewport: null,
             headless: true,
         });
