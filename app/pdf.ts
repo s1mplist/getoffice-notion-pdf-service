@@ -1,5 +1,5 @@
 // @/lib/pdf.ts
-import chromium from "@sparticuz/chromium-min";
+import chromium from "@sparticuz/chromium";
 import puppeteerCore from "puppeteer-core";
 import sharp from "sharp";
 
