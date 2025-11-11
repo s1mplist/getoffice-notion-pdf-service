@@ -37,12 +37,13 @@ export async function POST(request: NextRequest) {
 
         const pdfBuffer = await makePDFFromDomain(url);
 
-        return new NextResponse(pdfBuffer, {
+        // Converter Buffer para Uint8Array (compatível com NextResponse)
+        return new NextResponse(new Uint8Array(pdfBuffer), {
             status: 200,
             headers: {
                 ...corsHeaders,
-                "Content-Type": "application/pdf",
-                "Content-Disposition": `attachment; filename="relatorio-${Date.now()}.pdf"`,
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': `attachment; filename="document.pdf"`,
             },
         });
     } catch (error) {
