@@ -6,7 +6,7 @@
   "framework": "nextjs",
   "functions": {
     "app/api/pdf/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     }
   },
   "regions": ["iad1"]
