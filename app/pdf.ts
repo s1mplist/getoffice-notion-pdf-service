@@ -46,16 +46,19 @@ async function downloadAndOptimizeImages(imageUrls: string[]): Promise<Map<strin
     const MAX_HEIGHT = 1400;
     const QUALITY = 70;
 
-    console.log(`[Images] Downloading and optimizing ${imageUrls.length} images in parallel...`);
+    // Remover duplicatas
+    const uniqueUrls = [...new Set(imageUrls)];
+    console.log(`[Images] Processing ${uniqueUrls.length} unique images (${imageUrls.length - uniqueUrls.length} duplicates removed)`);
+    
     const startTime = Date.now();
-
     const optimizedImages = new Map<string, string>();
 
-    const BATCH_SIZE = 5;
+    // Aumentar batch size para 10 (mais paralelismo)
+    const BATCH_SIZE = 10;
     const batches: string[][] = [];
 
-    for (let i = 0; i < imageUrls.length; i += BATCH_SIZE) {
-        batches.push(imageUrls.slice(i, i + BATCH_SIZE));
+    for (let i = 0; i < uniqueUrls.length; i += BATCH_SIZE) {
+        batches.push(uniqueUrls.slice(i, i + BATCH_SIZE));
     }
 
     let processedCount = 0;
@@ -64,70 +67,48 @@ async function downloadAndOptimizeImages(imageUrls: string[]): Promise<Map<strin
         const promises = batch.map(async (url, batchIndex) => {
             const index = processedCount + batchIndex;
             try {
-                console.log(`[Image ${index + 1}/${imageUrls.length}] Downloading: ${url.substring(0, 80)}...`);
+                // Reduzir timeout de 20s para 10s
+                const response = await fetch(url, {
+                    signal: AbortSignal.timeout(10000),
+                });
 
-                let response;
-                let retries = 3;
-
-                while (retries > 0) {
-                    try {
-                        response = await fetch(url, {
-                            signal: AbortSignal.timeout(20000),
-                        });
-
-                        if (response.ok) break;
-
-                        console.warn(`[Image ${index + 1}] Status ${response.status}, retrying...`);
-                        retries--;
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                    } catch (err) {
-                        retries--;
-                        if (retries === 0) throw err;
-                        console.warn(`[Image ${index + 1}] Fetch error, retrying...`);
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-                }
-
-                if (!response || !response.ok) {
-                    console.error(`[Image ${index + 1}] Failed to download after retries`);
+                if (!response.ok) {
+                    console.warn(`[Image ${index + 1}] HTTP ${response.status}`);
                     return;
                 }
 
                 const arrayBuffer = await response.arrayBuffer();
                 const buffer = Buffer.from(arrayBuffer);
 
-                console.log(`[Image ${index + 1}] Downloaded ${(buffer.length / 1024).toFixed(2)}KB, optimizing...`);
-
+                // Otimização mais agressiva
                 const optimized = await sharp(buffer)
                     .rotate()
                     .resize(MAX_WIDTH, MAX_HEIGHT, {
                         fit: 'inside',
                         withoutEnlargement: true,
                     })
-                    .jpeg({ quality: QUALITY, mozjpeg: true })
+                    .jpeg({ 
+                        quality: QUALITY, 
+                        mozjpeg: true,
+                        progressive: true // Reduz tamanho
+                    })
                     .toBuffer();
 
                 const base64 = `data:image/jpeg;base64,${optimized.toString('base64')}`;
                 optimizedImages.set(url, base64);
 
-                console.log(`[Image ${index + 1}] ✓ Optimized to ${(optimized.length / 1024).toFixed(2)}KB`);
+                console.log(`[Image ${index + 1}] ✓ ${(buffer.length / 1024).toFixed(0)}KB → ${(optimized.length / 1024).toFixed(0)}KB`);
             } catch (error) {
-                console.error(`[Image ${index + 1}] ✗ Error processing:`, error instanceof Error ? error.message : error);
+                console.error(`[Image ${index + 1}] ✗`, error instanceof Error ? error.message : 'Unknown error');
             }
         });
 
         await Promise.all(promises);
         processedCount += batch.length;
-
-        console.log(`[Images] Progress: ${processedCount}/${imageUrls.length}`);
     }
 
     const duration = Date.now() - startTime;
-    console.log(`[Images] Completed: ${optimizedImages.size}/${imageUrls.length} images in ${(duration / 1000).toFixed(2)}s`);
-
-    if (optimizedImages.size < imageUrls.length) {
-        console.warn(`[Images] Warning: ${imageUrls.length - optimizedImages.size} images failed to download`);
-    }
+    console.log(`[Images] ✓ ${optimizedImages.size}/${uniqueUrls.length} images in ${(duration / 1000).toFixed(2)}s`);
 
     return optimizedImages;
 }
@@ -135,35 +116,27 @@ async function downloadAndOptimizeImages(imageUrls: string[]): Promise<Map<strin
 export const makePDFFromDomain = async (url: string): Promise<Buffer> => {
     let browser;
     try {
-        console.log(`[PDF] Starting generation for: ${url}`);
+        console.log(`[PDF] Starting: ${url}`);
         const startTime = Date.now();
         
         browser = await getBrowser();
         const page = await browser.newPage();
 
-        page.setDefaultTimeout(120000);
-        page.setDefaultNavigationTimeout(120000);
-
-        page.on("pageerror", (err) => {
-            console.error("Page error:", err);
-        });
-        page.on("error", (err) => {
-            console.error("Error:", err);
-        });
+        page.setDefaultTimeout(90000);
+        page.setDefaultNavigationTimeout(90000);
 
         await page.setViewport({ width: 1080, height: 1024 });
 
-        console.log(`[PDF] Loading page...`);
+        console.log(`[PDF] Loading...`);
         
         await page.goto(url, {
             waitUntil: ["load", "domcontentloaded"],
-            timeout: 90000,
+            timeout: 60000, // Reduzido de 90s
         });
 
-        console.log(`[PDF] Page loaded, applying styles...`);
+        console.log(`[PDF] Applying styles...`);
         
         await page.evaluate(() => {
-            // CSS com controle de quebras de página e suporte a emojis
             const style = document.createElement('style');
             style.textContent = `
                 @page {
@@ -188,26 +161,22 @@ export const makePDFFromDomain = async (url: string): Promise<Buffer> => {
                     -moz-osx-font-smoothing: grayscale;
                 }
                 
-                /* Controle inteligente de quebras de página */
                 .talhao {
                     page-break-inside: avoid !important;
                     break-inside: avoid !important;
                     margin-bottom: 20px !important;
                 }
                 
-                /* Imagens não devem quebrar */
                 .gallery-image-wrapper, .image-wrapper {
                     page-break-inside: avoid !important;
                     break-inside: avoid !important;
                 }
                 
-                /* Cabeçalho de talhão não deve ficar sozinho */
                 .talhao-header, .talhao h2, .talhao h3 {
                     page-break-after: avoid !important;
                     break-after: avoid !important;
                 }
                 
-                /* Evitar órfãos e viúvas */
                 p, li {
                     orphans: 3;
                     widows: 3;
@@ -267,25 +236,24 @@ export const makePDFFromDomain = async (url: string): Promise<Buffer> => {
             }
         });
 
+        // Reduzido de 2s para 500ms
         await page.evaluateHandle('document.fonts.ready');
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 500));
 
-        console.log(`[PDF] Waiting for all images to load...`);
+        console.log(`[PDF] Waiting for images...`);
         
         await page.evaluate(async () => {
             const images = Array.from(document.querySelectorAll('img')) as HTMLImageElement[];
             
             await Promise.all(
-                images.map((img, i) => {
+                images.map((img) => {
                     if (img.complete && img.naturalHeight !== 0) {
                         return Promise.resolve();
                     }
                     
                     return new Promise<void>((resolve) => {
-                        const timeout = setTimeout(() => {
-                            console.warn(`Image ${i + 1} timeout`);
-                            resolve();
-                        }, 15000);
+                        // Reduzido de 15s para 8s
+                        const timeout = setTimeout(resolve, 8000);
                         
                         img.addEventListener('load', () => {
                             clearTimeout(timeout);
@@ -301,71 +269,7 @@ export const makePDFFromDomain = async (url: string): Promise<Buffer> => {
             );
         });
 
-        console.log(`[PDF] Adjusting image sizes for optimal layout...`);
-
-        await page.evaluate(() => {
-            // Ajustar tamanho das imagens para ficarem proporcionais
-            const talhoes = document.querySelectorAll('.talhao');
-            
-            console.log(`Found ${talhoes.length} talhoes`);
-            
-            talhoes.forEach((talhao, index) => {
-                const images = talhao.querySelectorAll('.gallery-image, .image-gallery img, img:not(.emoji)') as NodeListOf<HTMLImageElement>;
-                
-                if (images.length === 0) return;
-                
-                console.log(`Talhao ${index + 1}: ${images.length} images`);
-                
-                // REMOVIDO: altura fixa - deixar o CSS do template controlar
-                // Apenas garantir que imagens sejam carregadas corretamente
-                images.forEach((img) => {
-                    // Garantir que lazy loading está desabilitado
-                    img.removeAttribute('loading');
-                    
-                    // Aplicar apenas estilos essenciais para PDF
-                    img.style.maxWidth = '100%';
-                    img.style.height = 'auto';
-                    img.style.objectFit = 'contain';
-                });
-            });
-            
-            // CSS mínimo - apenas para garantir comportamento correto no PDF
-            const dynamicStyle = document.createElement('style');
-            dynamicStyle.textContent = `
-                /* Deixar o grid CSS do template funcionar */
-                .gallery-image-wrapper, .image-wrapper {
-                    page-break-inside: avoid !important;
-                    break-inside: avoid !important;
-                }
-                
-                /* Garantir que imagens se comportem bem no PDF */
-                .gallery-image, .image-gallery img {
-                    max-width: 100% !important;
-                    height: auto !important;
-                    object-fit: contain !important;
-                    image-orientation: from-image !important;
-                }
-                
-                /* Para grid de 3 colunas - se o template usar essa classe */
-                .image-grid-3 {
-                    display: grid !important;
-                    grid-template-columns: repeat(3, 1fr) !important;
-                    gap: 10px !important;
-                }
-                
-                /* Para grid de 2 colunas - manter compatibilidade */
-                .image-grid-2 {
-                    display: grid !important;
-                    grid-template-columns: repeat(2, 1fr) !important;
-                    gap: 10px !important;
-                }
-            `;
-            document.head.appendChild(dynamicStyle);
-            
-            console.log('Image sizing applied - respecting template CSS');
-        });
-
-        console.log(`[PDF] Extracting image URLs...`);
+        console.log(`[PDF] Extracting URLs...`);
 
         const imageUrls = await page.evaluate(() => {
             const images = Array.from(document.querySelectorAll('img')) as HTMLImageElement[];
@@ -381,33 +285,29 @@ export const makePDFFromDomain = async (url: string): Promise<Buffer> => {
                 );
         });
 
-        console.log(`[PDF] Found ${imageUrls.length} unique images to process`);
+        console.log(`[PDF] Found ${imageUrls.length} images`);
 
         if (imageUrls.length > 0) {
             const optimizedImages = await downloadAndOptimizeImages(imageUrls);
 
-            console.log(`[PDF] Injecting ${optimizedImages.size} optimized images...`);
+            console.log(`[PDF] Injecting ${optimizedImages.size} images...`);
 
             await page.evaluate((imageMap: Record<string, string>) => {
                 const images = Array.from(document.querySelectorAll('img:not(.emoji)')) as HTMLImageElement[];
                 
-                let replacedCount = 0;
                 images.forEach(img => {
                     const optimizedSrc = imageMap[img.src];
                     if (optimizedSrc) {
                         img.src = optimizedSrc;
-                        replacedCount++;
                     }
                 });
-                
-                console.log(`Replaced ${replacedCount}/${images.length} images`);
             }, Object.fromEntries(optimizedImages));
         }
 
-        console.log(`[PDF] Waiting for final render...`);
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        // Reduzido de 2s para 500ms
+        await new Promise((resolve) => setTimeout(resolve, 500));
 
-        console.log(`[PDF] Generating multi-page PDF with smart breaks...`);
+        console.log(`[PDF] Generating PDF...`);
 
         const pdf = await page.pdf({
             format: 'A4',
@@ -416,14 +316,14 @@ export const makePDFFromDomain = async (url: string): Promise<Buffer> => {
             preferCSSPageSize: true,
             displayHeaderFooter: false,
             scale: 1.0,
-            timeout: 120000,
+            timeout: 90000,
             omitBackground: false,
         });
 
         await browser.close();
         
         const duration = Date.now() - startTime;
-        console.log(`[PDF] ✓ PDF generated in ${(duration / 1000).toFixed(2)}s`);
+        console.log(`[PDF] ✓ Generated in ${(duration / 1000).toFixed(2)}s`);
         
         return Buffer.from(pdf);
     } catch (error) {
