@@ -160,24 +160,10 @@ export const makePDFFromDomain = async (url: string): Promise<Buffer> => {
             timeout: 90000,
         });
 
-        console.log(`[PDF] Page loaded, fixing emoji rendering...`);
-        
-        // CONVERTER EMOJIS UNICODE PARA IMAGENS TWEMOJI
-        await page.addScriptTag({
-            url: 'https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js'
-        });
+        console.log(`[PDF] Page loaded, applying styles...`);
         
         await page.evaluate(() => {
-            // Aplicar Twemoji
-            if (typeof (window as any).twemoji !== 'undefined') {
-                (window as any).twemoji.parse(document.body, {
-                    folder: 'svg',
-                    ext: '.svg'
-                });
-                console.log('Twemoji applied - emojis converted to images');
-            }
-            
-            // CSS com controle de quebras de página
+            // CSS com controle de quebras de página e suporte a emojis
             const style = document.createElement('style');
             style.textContent = `
                 @page {
@@ -186,7 +172,7 @@ export const makePDFFromDomain = async (url: string): Promise<Buffer> => {
                 }
                 
                 * {
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif !important;
                 }
                 
                 html, body {
@@ -196,23 +182,10 @@ export const makePDFFromDomain = async (url: string): Promise<Buffer> => {
                 }
                 
                 body, p, span, div, h1, h2, h3, h4, h5, h6, li, td, th {
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif !important;
                     text-rendering: optimizeLegibility;
                     -webkit-font-smoothing: antialiased;
                     -moz-osx-font-smoothing: grayscale;
-                }
-                
-                img.emoji {
-                    height: 1em !important;
-                    width: 1em !important;
-                    margin: 0 0.05em 0 0.1em !important;
-                    vertical-align: -0.1em !important;
-                    display: inline !important;
-                }
-                
-                .summary-icon img.emoji {
-                    height: 1.5em !important;
-                    width: 1.5em !important;
                 }
                 
                 /* Controle inteligente de quebras de página */
@@ -242,14 +215,7 @@ export const makePDFFromDomain = async (url: string): Promise<Buffer> => {
                 
                 @media print {
                     * {
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                    }
-                    
-                    img.emoji {
-                        height: 1em !important;
-                        width: 1em !important;
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif !important;
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
                     }
