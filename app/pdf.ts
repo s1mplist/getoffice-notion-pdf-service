@@ -304,27 +304,6 @@ export const makePDFFromDomain = async (url: string): Promise<Buffer> => {
         await page.evaluateHandle('document.fonts.ready');
         await new Promise((resolve) => setTimeout(resolve, 2000));
 
-        console.log(`[PDF] Scrolling through entire page...`);
-        
-        await page.evaluate(async () => {
-            await new Promise<void>((resolve) => {
-                let totalHeight = 0;
-                const distance = 500;
-                
-                const timer = setInterval(() => {
-                    const scrollHeight = document.body.scrollHeight;
-                    window.scrollBy(0, distance);
-                    totalHeight += distance;
-
-                    if (totalHeight >= scrollHeight) {
-                        clearInterval(timer);
-                        window.scrollTo(0, 0);
-                        resolve();
-                    }
-                }, 100);
-            });
-        });
-
         console.log(`[PDF] Waiting for all images to load...`);
         
         await page.evaluate(async () => {
