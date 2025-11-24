@@ -149,7 +149,7 @@ export const makePDFFromDomain = async (url: string): Promise<Buffer> => {
 
         await page.goto(url, {
             waitUntil: ["load", "domcontentloaded"],
-            timeout: 60000,
+            timeout: 180000,
         });
 
         console.log(`[PDF] Applying styles...`);
