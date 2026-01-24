@@ -105,12 +105,12 @@ export const makePDFFromDomain = async (url: string): Promise<Buffer> => {
             const requestUrl = request.url();
 
             // Interceptar apenas imagens (não emoji/twemoji)
-            if (resourceType === 'image' && 
-                requestUrl.startsWith('http') && 
-                !requestUrl.includes('twemoji') && 
+            if (resourceType === 'image' &&
+                requestUrl.startsWith('http') &&
+                !requestUrl.includes('twemoji') &&
                 !requestUrl.includes('emoji') &&
                 !requestUrl.includes('data:image')) {
-                
+
                 // Verificar se já está no cache
                 if (imageCache.has(requestUrl)) {
                     const optimizedBuffer = imageCache.get(requestUrl)!;
@@ -124,12 +124,12 @@ export const makePDFFromDomain = async (url: string): Promise<Buffer> => {
 
                 // Otimizar em tempo real
                 const optimizedBuffer = await downloadAndOptimizeImage(requestUrl);
-                
+
                 if (optimizedBuffer) {
                     imageCache.set(requestUrl, optimizedBuffer);
                     optimizedCount++;
                     console.log(`[Image ${optimizedCount}] ✓ Optimized on-the-fly: ${requestUrl.substring(0, 60)}...`);
-                    
+
                     request.respond({
                         status: 200,
                         contentType: 'image/jpeg',
